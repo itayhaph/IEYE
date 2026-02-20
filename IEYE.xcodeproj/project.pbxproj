@@ -10,9 +10,22 @@
 		BACA12B92F4728340088995C /* IEYE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = IEYE.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BACA12CF2F47296B0088995C /* Exceptions for "IEYE" folder in "IEYE" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = BACA12B82F4728340088995C /* IEYE */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BACA12BB2F4728340088995C /* IEYE */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BACA12CF2F47296B0088995C /* Exceptions for "IEYE" folder in "IEYE" target */,
+			);
 			path = IEYE;
 			sourceTree = "<group>";
 		};
@@ -32,8 +45,8 @@
 		BACA12B02F4728340088995C = {
 			isa = PBXGroup;
 			children = (
-				BACA12BB2F4728340088995C /* IEYE */,
 				BACA12BA2F4728340088995C /* Products */,
+				BACA12BB2F4728340088995C /* IEYE */,
 			);
 			sourceTree = "<group>";
 		};
@@ -255,6 +268,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 22S3TXL8J2;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = IEYE/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = CAMERA_USAGE_DESCRIPTION;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -288,6 +303,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 22S3TXL8J2;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = IEYE/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = CAMERA_USAGE_DESCRIPTION;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
