@@ -10,6 +10,7 @@ import AVFoundation
 import Vision
 import CoreImage
 import CoreGraphics
+import ARKit
 
 public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
 
@@ -171,6 +172,13 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
         // linear interpolation
         let t: CGFloat = (openRatio - ratio) / (openRatio - closedRatio)
         return Float(max(0, min(1, t)))
+    }
+    
+
+    // Add this to satisfy the protocol requirements
+    public func handleUpdate(faceAnchor: ARFaceAnchor) {
+        // Vision backend handles data through the AVCapture session
+        // so we don't need to do anything here.
     }
 }
 
