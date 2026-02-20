@@ -1,15 +1,13 @@
-//
-//  MetricsDetecting.swift
-//  IEYE
-//
-//  Created by Itay Haphiloni on 19/02/2026.
-//
-
 import Foundation
+import ARKit // You need this import to use ARFaceAnchor
 
 public protocol MetricsDetecting: AnyObject {
     var onMetrics: ((FaceMetrics) -> Void)? { get set }
-    var onFaceLost: ((TimeInterval) -> Void)? { get set } // timestamp
+    var onFaceLost: ((TimeInterval) -> Void)? { get set }
+    
+    // ADD THIS LINE:
+    func handleUpdate(faceAnchor: ARFaceAnchor)
+    
     func start()
     func stop()
 }

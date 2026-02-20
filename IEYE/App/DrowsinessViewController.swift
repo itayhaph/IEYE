@@ -1,15 +1,9 @@
-//
-//  ViewController.swift
-//  IEYE
-//
-//  Created by Itay Haphiloni on 19/02/2026.
-//
 import UIKit
 import ARKit
 
 final class DrowsinessViewController: UIViewController {
 
-    @IBOutlet private var sceneView: ARSCNView!
+    @IBOutlet var sceneView: ARSCNView!
 
     private let drowsinessView = DrowsinessView()
     private var detector: MetricsDetecting!
@@ -17,6 +11,9 @@ final class DrowsinessViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        // 1. Set the delegate so this class receives face data
+        sceneView.delegate = self
 
         // UI overlay
         drowsinessView.translatesAutoresizingMaskIntoConstraints = false
@@ -35,20 +32,31 @@ final class DrowsinessViewController: UIViewController {
 
         // Bind
         viewModel.onStateChanged = { [weak self] state in
-            self?.drowsinessView.render(state)
+            DispatchQueue.main.async {
+                self?.drowsinessView.render(state)
+            }
         }
 
         detector.onMetrics = { [weak self] metrics in
-            self?.viewModel.handle(metrics: metrics)
+            DispatchQueue.main.async {
+                self?.viewModel.handle(metrics: metrics)
+            }
         }
 
         detector.onFaceLost = { [weak self] time in
-            self?.viewModel.handleFaceLost(time: time)
+            // Also wrap UI-related state changes in main thread if necessary
+            DispatchQueue.main.async {
+                self?.viewModel.handleFaceLost(time: time)
+            }
         }
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+
+        // 2. Start the ARFaceTracking session
+        let configuration = ARFaceTrackingConfiguration()
+        sceneView.session.run(configuration)
 
         let now = CACurrentMediaTime()
         viewModel.start(now: now)
@@ -57,8 +65,22 @@ final class DrowsinessViewController: UIViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        
+        // 3. Pause the session to save battery/resources
+        sceneView.session.pause()
+        
         detector.stop()
         viewModel.stop()
     }
 }
 
+// MARK: - ARSCNViewDelegate
+// This extension catches the face movements and sends them to your detector
+extension DrowsinessViewController: ARSCNViewDelegate {
+    func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
+        guard let faceAnchor = anchor as? ARFaceAnchor else { return }
+        
+        // Pass the face data to your detector logic
+        detector.handleUpdate(faceAnchor: faceAnchor)
+    }
+}

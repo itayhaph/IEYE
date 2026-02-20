@@ -1,15 +1,7 @@
-//
-//  ARKitFaceMetricsDetector.swift
-//  IEYE
-//
-//  Created by Itay Haphiloni on 19/02/2026.
-//
-
 import Foundation
 import ARKit
-import SceneKit
 
-public final class ARKitFaceMetricsDetector: NSObject, MetricsDetecting, ARSCNViewDelegate {
+public final class ARKitFaceMetricsDetector: NSObject, MetricsDetecting {
 
     public var onMetrics: ((FaceMetrics) -> Void)?
     public var onFaceLost: ((TimeInterval) -> Void)?
@@ -27,18 +19,12 @@ public final class ARKitFaceMetricsDetector: NSObject, MetricsDetecting, ARSCNVi
 
     public func start() {
         guard ARFaceTrackingConfiguration.isSupported else {
-            // No face tracking available; still tick "face lost"
             isRunning = false
             return
         }
 
-        sceneView.delegate = self
-        sceneView.automaticallyUpdatesLighting = true
-
-        let config = ARFaceTrackingConfiguration()
-        config.isLightEstimationEnabled = true
-        sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
-
+        // Configuration is now handled in viewWillAppear of the ViewController
+        // to ensure the session starts exactly when the view is ready.
         isRunning = true
         let now = CACurrentMediaTime()
         lastFaceSeenTime = now
@@ -47,30 +33,32 @@ public final class ARKitFaceMetricsDetector: NSObject, MetricsDetecting, ARSCNVi
 
     public func stop() {
         isRunning = false
-        sceneView.session.pause()
+        // session.pause() is now handled by the ViewController for better lifecycle management.
     }
 
-    // MARK: - ARSCNViewDelegate
-    public func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
-        guard isRunning, let faceAnchor = anchor as? ARFaceAnchor else { return }
+    // This is the new required method from the updated MetricsDetecting protocol
+    public func handleUpdate(faceAnchor: ARFaceAnchor) {
+        guard isRunning else { return }
 
         let now = CACurrentMediaTime()
         lastFaceSeenTime = now
 
+        // ARKit blendShapes provide values from 0.0 (open) to 1.0 (closed)
         let left = faceAnchor.blendShapes[.eyeBlinkLeft]?.floatValue ?? 0
         let right = faceAnchor.blendShapes[.eyeBlinkRight]?.floatValue ?? 0
 
+        // Image of ARKit face anchor blend shapes for eyeBlinkLeft and eyeBlinkRight
+        
         onMetrics?(FaceMetrics(timestamp: now, blinkLeft: left, blinkRight: right))
     }
 
-    public func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+    // We keep this to monitor if the face disappears entirely for > 1 second
+    public func checkFaceStatus(atTime time: TimeInterval) {
         guard isRunning else { return }
 
-        // Throttle face-lost callback
         if time - lastFaceLostTick >= faceLostTickInterval {
             lastFaceLostTick = time
 
-            // If no face updates recently -> notify
             if time - lastFaceSeenTime > 1.0 {
                 onFaceLost?(time)
             }
