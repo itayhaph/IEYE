@@ -16,11 +16,10 @@ final class DIContainer {
 
     static func makeBackend() -> DetectionBackend {
         // Prefer ARKit when device supports face tracking; otherwise fall back to Vision
-        if ARFaceTrackingConfiguration.isSupported {
-            return .arkit
-        } else {
-            return .vision
-        }
+//        if ARFaceTrackingConfiguration.isSupported {
+//            return .arkit
+//        } else {
+        return .vision
     }
 
     static func makeViewModel(backend: DetectionBackend) -> DrowsinessViewModel {

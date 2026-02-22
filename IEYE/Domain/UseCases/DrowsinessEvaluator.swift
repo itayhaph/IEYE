@@ -1,10 +1,3 @@
-//
-//  DrowsinessEvaluator.swift
-//  IEYE
-//
-//  Created by Itay Haphiloni on 19/02/2026.
-//
-
 import Foundation
 
 public final class DrowsinessEvaluator {
@@ -64,12 +57,11 @@ public final class DrowsinessEvaluator {
     }
 
     public func ingestFaceLost(at timestamp: TimeInterval) -> DrowsinessState {
-        // Called periodically by detector update loop
         if timestamp - lastFaceSeenTime > faceLostTimeout {
             isFaceLost = true
             return makeState(now: timestamp, alert: .noFace)
         }
-        return makeState(now: timestamp, alert: .none) // won't be used usually
+        return makeState(now: timestamp, alert: .none)
     }
 
     public func ingest(metrics: FaceMetrics) -> DrowsinessState {
@@ -81,15 +73,15 @@ public final class DrowsinessEvaluator {
         smoothedLeft = smooth(newValue: metrics.blinkLeft, oldValue: smoothedLeft, alpha: smoothingAlpha)
         smoothedRight = smooth(newValue: metrics.blinkRight, oldValue: smoothedRight, alpha: smoothingAlpha)
 
-        // Calibration
-        var calibrationProgress: Double = 0
+        // Calibration logic
+        var currentCalibrationProgress: Double = 0
         if calibrationStart == nil {
             calibrationStart = now
             calibrationSamples.removeAll(keepingCapacity: true)
         }
         if let start = calibrationStart, !isCalibrated {
             let elapsed = now - start
-            calibrationProgress = min(1.0, elapsed / calibrationDuration)
+            currentCalibrationProgress = min(1.0, elapsed / calibrationDuration)
 
             if elapsed <= calibrationDuration {
                 let avg = (smoothedLeft + smoothedRight) / 2
@@ -97,6 +89,8 @@ public final class DrowsinessEvaluator {
             } else {
                 finalizeCalibration()
             }
+        } else {
+            currentCalibrationProgress = 1.0
         }
 
         // Eye state with hysteresis
@@ -116,8 +110,8 @@ public final class DrowsinessEvaluator {
             }
         }
 
-        // PERCLOS samples
-        appendWindowSample(time: now, isClosed: eyeState == .closed)
+        // --- התיקון המרכזי: הוספת דגימה עם מנגנון התאוששות מהירה ---
+        appendWindowSample(time: now, isClosed: eyeState == .closed, fastRecovery: bothOpen)
         let perclos = computePerclos()
 
         // Alert decision
@@ -125,7 +119,6 @@ public final class DrowsinessEvaluator {
         if isFaceLost {
             alert = .noFace
         } else if !isCalibrated {
-            // before calibration: only continuous closure safety net
             alert = isContinuousClosedLongEnough(now: now) ? .alarm : .none
         } else if isContinuousClosedLongEnough(now: now) {
             alert = .alarm
@@ -137,7 +130,6 @@ public final class DrowsinessEvaluator {
             alert = .none
         }
 
-        // Progress for UI
         let continuousProgress: Double = {
             guard eyeState == .closed, let start = closedStartTime else { return 0 }
             return min(1.0, (now - start) / closedContinuousForAlarm)
@@ -147,7 +139,7 @@ public final class DrowsinessEvaluator {
             alert: alert,
             perclos: perclos,
             isCalibrated: isCalibrated,
-            calibrationProgress: calibrationProgress,
+            calibrationProgress: currentCalibrationProgress,
             continuousClosureProgress: continuousProgress
         )
     }
@@ -165,20 +157,33 @@ public final class DrowsinessEvaluator {
         closeThreshold = close
     }
 
-    private func appendWindowSample(time: TimeInterval, isClosed: Bool) {
+    private func appendWindowSample(time: TimeInterval, isClosed: Bool, fastRecovery: Bool) {
         windowSamples.append(.init(time: time, isClosed: isClosed))
 
+        // מנגנון "ניקוי מהיר": אם המשתמש פקח עיניים, נמחק דגימות "סגורות" ישנות מהר יותר
+        // כדי שהממוצע ירד מיד ולא יחכה 60 שניות.
+        if fastRecovery {
+            var removedCount = 0
+            // בכל פעם שיש פתיחה, נמחק עד 5 דגימות "סגורות" מההיסטוריה
+            windowSamples.removeAll { sample in
+                if removedCount < 5 && sample.isClosed {
+                    removedCount += 1
+                    return true
+                }
+                return false
+            }
+        }
+
         let cutoff = time - perclosWindow
-        if windowSamples.count > 5 {
-            var idx = 0
-            while idx < windowSamples.count, windowSamples[idx].time < cutoff { idx += 1 }
-            if idx > 0 { windowSamples.removeFirst(idx) }
+        // ניקוי סטנדרטי לפי חלון הזמן
+        while !windowSamples.isEmpty && windowSamples[0].time < cutoff {
+            windowSamples.removeFirst()
         }
     }
 
     private func computePerclos() -> Double {
         guard !windowSamples.isEmpty else { return 0 }
-        let closedCount = windowSamples.reduce(into: 0) { $0 += $1.isClosed ? 1 : 0 }
+        let closedCount = windowSamples.reduce(0) { $0 + ($1.isClosed ? 1 : 0) }
         return Double(closedCount) / Double(windowSamples.count)
     }
 
@@ -188,7 +193,6 @@ public final class DrowsinessEvaluator {
     }
 
     private func makeState(now: TimeInterval, alert: AlertLevel) -> DrowsinessState {
-        // lightweight snapshot when face is lost
         let perclos = computePerclos()
         return DrowsinessState(
             alert: alert,
