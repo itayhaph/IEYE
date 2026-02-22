@@ -22,6 +22,15 @@ final class DIContainer {
         return .vision
     }
 
+    // בתוך DIContainer
+    static func makeARKitDetector(sceneView: ARSCNView) -> MetricsDetecting {
+        return ARKitFaceMetricsDetector(sceneView: sceneView)
+    }
+    
+    static func makeVisionDetector() -> MetricsDetecting {
+        return VisionFaceMetricsDetector()
+    }
+    
     static func makeViewModel(backend: DetectionBackend) -> DrowsinessViewModel {
         // Build evaluator and audio alerting dependencies
         let evaluator = DrowsinessEvaluator()

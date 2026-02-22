@@ -1,7 +1,7 @@
 import Foundation
 import ARKit
 
-public final class ARKitFaceMetricsDetector: NSObject, MetricsDetecting {
+public final class ARKitFaceMetricsDetector: NSObject, MetricsDetecting, ARSCNViewDelegate {
 
     public var onMetrics: ((FaceMetrics) -> Void)?
     public var onFaceLost: ((TimeInterval) -> Void)?
@@ -23,8 +23,6 @@ public final class ARKitFaceMetricsDetector: NSObject, MetricsDetecting {
             return
         }
 
-        // Configuration is now handled in viewWillAppear of the ViewController
-        // to ensure the session starts exactly when the view is ready.
         isRunning = true
         let now = CACurrentMediaTime()
         lastFaceSeenTime = now
@@ -33,10 +31,14 @@ public final class ARKitFaceMetricsDetector: NSObject, MetricsDetecting {
 
     public func stop() {
         isRunning = false
-        // session.pause() is now handled by the ViewController for better lifecycle management.
     }
 
-    // This is the new required method from the updated MetricsDetecting protocol
+    // מימוש ה-Delegate - זה מה שיגרום לזה לעבוד במעבר ידני
+    public func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
+        guard let faceAnchor = anchor as? ARFaceAnchor else { return }
+        handleUpdate(faceAnchor: faceAnchor)
+    }
+
     public func handleUpdate(faceAnchor: ARFaceAnchor) {
         guard isRunning else { return }
 
@@ -46,13 +48,10 @@ public final class ARKitFaceMetricsDetector: NSObject, MetricsDetecting {
         // ARKit blendShapes provide values from 0.0 (open) to 1.0 (closed)
         let left = faceAnchor.blendShapes[.eyeBlinkLeft]?.floatValue ?? 0
         let right = faceAnchor.blendShapes[.eyeBlinkRight]?.floatValue ?? 0
-
-        // Image of ARKit face anchor blend shapes for eyeBlinkLeft and eyeBlinkRight
         
         onMetrics?(FaceMetrics(timestamp: now, blinkLeft: left, blinkRight: right))
     }
 
-    // We keep this to monitor if the face disappears entirely for > 1 second
     public func checkFaceStatus(atTime time: TimeInterval) {
         guard isRunning else { return }
 
