@@ -146,7 +146,8 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
             // הדפסה לדיבאג כדי לראות את ההבדל בין הערך הגולמי למוחלק
             // print("EAR -> Raw: \(leftRaw), Smoothed: \(leftSmoothed)")
             
-            self.onMetrics?(FaceMetrics(timestamp: now, blinkLeft: leftSmoothed, blinkRight: rightSmoothed))
+            self.onMetrics?(FaceMetrics(timestamp: now, blinkLeft: leftSmoothed, blinkRight: rightSmoothed, faceRect: face.boundingBox))
+//            self.onMetrics?(FaceMetrics(timestamp: now, blinkLeft: leftSmoothed, blinkRight: rightSmoothed))
         }
         
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])

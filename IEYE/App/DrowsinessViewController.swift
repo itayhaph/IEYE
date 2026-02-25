@@ -5,13 +5,14 @@ import AVFoundation
 final class DrowsinessViewController: UIViewController {
 
     @IBOutlet var sceneView: ARSCNView!
-
+    
     private let drowsinessView = DrowsinessView()
     private var detector: MetricsDetecting!
     private var viewModel: DrowsinessViewModel!
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var isNightMode = false
     private let nightModeButton = UIButton(type: .system)
+    private var detectionLayer = CAShapeLayer()
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -19,13 +20,21 @@ final class DrowsinessViewController: UIViewController {
         // 1. UI Setup
         setupDrowsinessView()
         setupNightModeButton()
+        setupDetectionLayer()
 
         // 2. DI & Backend logic
         let backend = DIContainer.makeBackend()
         viewModel = DIContainer.makeViewModel(backend: backend)
         detector = DIContainer.makeDetector(sceneView: sceneView, backend: backend)
 
-        // 3. Vision Specific Setup
+        // 3. Bindings & Initial Setup
+        setupNewDetector(detector)
+        
+        viewModel.onStateChanged = { [weak self] state in
+            DispatchQueue.main.async { self?.drowsinessView.render(state) }
+        }
+
+        // 4. Vision Specific Setup
         if case .vision = backend {
             setupVisionPreview()
             sceneView.isHidden = true
@@ -33,9 +42,13 @@ final class DrowsinessViewController: UIViewController {
             sceneView.delegate = self
             sceneView.isHidden = false
         }
+    }
 
-        // 4. Bindings
-        setupBindings()
+    private func setupDetectionLayer() {
+        detectionLayer.strokeColor = UIColor.green.cgColor
+        detectionLayer.lineWidth = 2.0
+        detectionLayer.fillColor = UIColor.clear.cgColor
+        view.layer.addSublayer(detectionLayer)
     }
 
     private func setupNightModeButton() {
@@ -59,7 +72,6 @@ final class DrowsinessViewController: UIViewController {
     
     @objc private func nightModeTapped() {
         isNightMode.toggle()
-        
         detector.stop()
         
         if isNightMode {
@@ -67,12 +79,11 @@ final class DrowsinessViewController: UIViewController {
             sceneView.session.pause()
             previewLayer?.removeFromSuperlayer()
             
-            let arkitDetector = DIContainer.makeARKitDetector(sceneView: self.sceneView)
+            // ניקוי צמתים ישנים
+            sceneView.scene.rootNode.enumerateChildNodes { (node, _) in node.removeFromParentNode() }
             
-            // הגדרת ה-ARKitFaceMetricsDetector כ-Delegate של ה-sceneView
-            if let arDelegate = arkitDetector as? ARSCNViewDelegate {
-                sceneView.delegate = arDelegate
-            }
+            let arkitDetector = DIContainer.makeARKitDetector(sceneView: self.sceneView)
+            sceneView.delegate = self // ה-VC הוא ה-delegate כדי להפעיל את ה-renderer
             
             setupNewDetector(arkitDetector)
             
@@ -85,6 +96,7 @@ final class DrowsinessViewController: UIViewController {
             // --- חזרה ל-Vision (Standard Mode) ---
             sceneView.session.pause()
             sceneView.isHidden = true
+            sceneView.delegate = nil
             
             let visionDetector = DIContainer.makeVisionDetector()
             setupNewDetector(visionDetector)
@@ -100,8 +112,28 @@ final class DrowsinessViewController: UIViewController {
         self.detector = newDetector
         
         self.detector.onMetrics = { [weak self] metrics in
-            DispatchQueue.main.async { self?.viewModel.handle(metrics: metrics) }
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                
+                // 1. לוגיקת עייפות
+                self.viewModel.handle(metrics: metrics)
+                
+                // 2. ויזואליזציה של הריבוע הירוק (רק ב-Vision)
+                if let rect = metrics.faceRect, !self.isNightMode {
+                    let viewRect = self.view.frame
+                    let w = rect.width * viewRect.width
+                    let h = rect.height * viewRect.height
+                    let x = rect.origin.x * viewRect.width
+                    let y = (1 - rect.origin.y - rect.height) * viewRect.height
+                    
+                    let drawRect = CGRect(x: x, y: y, width: w, height: h)
+                    self.detectionLayer.path = UIBezierPath(rect: drawRect).cgPath
+                } else {
+                    self.detectionLayer.path = nil
+                }
+            }
         }
+        
         self.detector.onFaceLost = { [weak self] time in
             DispatchQueue.main.async { self?.viewModel.handleFaceLost(time: time) }
         }
@@ -135,29 +167,13 @@ final class DrowsinessViewController: UIViewController {
         }
     }
 
-    private func setupBindings() {
-        viewModel.onStateChanged = { [weak self] state in
-            DispatchQueue.main.async { self?.drowsinessView.render(state) }
-        }
-
-        detector.onMetrics = { [weak self] metrics in
-            DispatchQueue.main.async { self?.viewModel.handle(metrics: metrics) }
-        }
-
-        detector.onFaceLost = { [weak self] time in
-            DispatchQueue.main.async { self?.viewModel.handleFaceLost(time: time) }
-        }
-    }
-
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-
-        if ARFaceTrackingConfiguration.isSupported,
+        if ARFaceTrackingConfiguration.isSupported, !isNightMode,
            case .arkit = DIContainer.makeBackend() {
             let configuration = ARFaceTrackingConfiguration()
             sceneView.session.run(configuration)
         }
-
         let now = CACurrentMediaTime()
         viewModel.start(now: now)
         detector.start()
@@ -180,9 +196,22 @@ final class DrowsinessViewController: UIViewController {
 
 // MARK: - ARSCNViewDelegate
 extension DrowsinessViewController: ARSCNViewDelegate {
+    
+    func renderer(_ renderer: SCNSceneRenderer, nodeFor anchor: ARAnchor) -> SCNNode? {
+        guard isNightMode, let device = sceneView.device else { return nil }
+        let faceGeometry = ARSCNFaceGeometry(device: device)
+        let node = SCNNode(geometry: faceGeometry)
+        node.geometry?.firstMaterial?.fillMode = .lines
+        node.geometry?.firstMaterial?.diffuse.contents = UIColor.systemPurple
+        return node
+    }
+
     func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
         guard let faceAnchor = anchor as? ARFaceAnchor else { return }
-        // השורה הזו מטפלת במצב ההתחלתי (אם התחלת ב-ARKit)
         detector.handleUpdate(faceAnchor: faceAnchor)
+        
+        if isNightMode, let faceGeometry = node.geometry as? ARSCNFaceGeometry {
+            faceGeometry.update(from: faceAnchor.geometry)
+        }
     }
 }
