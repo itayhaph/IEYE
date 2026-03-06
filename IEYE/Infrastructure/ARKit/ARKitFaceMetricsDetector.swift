@@ -41,15 +41,29 @@ public final class ARKitFaceMetricsDetector: NSObject, MetricsDetecting, ARSCNVi
 
     public func handleUpdate(faceAnchor: ARFaceAnchor) {
         guard isRunning else { return }
-
         let now = CACurrentMediaTime()
-        lastFaceSeenTime = now
-
-        // ARKit blendShapes provide values from 0.0 (open) to 1.0 (closed)
+        
+        // קבלת המטריצה
+        let transform = faceAnchor.transform
+        
+        // ב-simd_float4x4, הגישה היא למאפיינים .columns.0, .columns.1 וכו'
+        // הנה החישוב הנכון לזוויות Euler (Pitch, Yaw, Roll):
+        let pitch = asin(-transform.columns.1.z)
+        let yaw = atan2(transform.columns.0.z, transform.columns.2.z)
+        let roll = atan2(transform.columns.1.x, transform.columns.1.y)
+        
         let left = faceAnchor.blendShapes[.eyeBlinkLeft]?.floatValue ?? 0
         let right = faceAnchor.blendShapes[.eyeBlinkRight]?.floatValue ?? 0
         
-        onMetrics?(FaceMetrics(timestamp: now, blinkLeft: left, blinkRight: right))
+        onMetrics?(FaceMetrics(
+            timestamp: now,
+            blinkLeft: left,
+            blinkRight: right,
+            faceRect: nil,
+            pitch: pitch,
+            yaw: yaw,
+            roll: roll
+        ))
     }
 
     public func checkFaceStatus(atTime time: TimeInterval) {

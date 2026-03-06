@@ -23,7 +23,7 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
     // --- מנגנון החלקת נתונים (Smoothing) למניעת אזעקות שווא ---
     private var leftEyeHistory: [Float] = []
     private var rightEyeHistory: [Float] = []
-    private let maxHistorySamples = 4 // כמות פריימים לממוצע נע. הגדל ל-6 אם עדיין יש אזעקות שווא במצמוץ.
+    private let maxHistorySamples = 4
     
     private let imageProcessor = ImageProcessingService()
     
@@ -37,7 +37,6 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
         
         configureCapture()
         
-        // הרצת הסשן בתור רקע כדי לא לחסום את ה-UI
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.session.startRunning()
         }
@@ -96,7 +95,6 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
         }
     }
 
-    // פונקציית עזר לחישוב ממוצע נע
     private func smoothValue(_ newValue: Float, history: inout [Float]) -> Float {
         history.append(newValue)
         if history.count > maxHistorySamples {
@@ -112,46 +110,70 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
         }
         lastRequestTime = now
         
-        let request = VNDetectFaceLandmarksRequest { [weak self] req, _ in
-            guard let self = self else { return }
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])
+        
+        // --- שלב 1: זיהוי פנים עם Revision 3 לקבלת זוויות רציפות ---
+        let rectRequest = VNDetectFaceRectanglesRequest()
+        if #available(iOS 15.0, *) {
+            // זה מה שמתקן את הקפיצות ב-Yaw ומחשב Pitch ו-Roll!
+            rectRequest.revision = VNDetectFaceRectanglesRequestRevision3
+        }
+        
+        do {
+            try handler.perform([rectRequest])
             
-            guard let face = (req.results as? [VNFaceObservation])?.first,
-                  let landmarks = face.landmarks else {
-                self.handleFaceLostIfNeeded(now: now)
+            // שולפים את הפנים (עכשיו יש עליהן מידע זוויות חלק)
+            guard let faces = rectRequest.results as? [VNFaceObservation], let faceRectObs = faces.first else {
+                handleFaceLostIfNeeded(now: now)
+                return
+            }
+            
+            // --- שלב 2: זיהוי ציוני פנים (Landmarks) על הפנים המדויקות שמצאנו ---
+            let landmarksRequest = VNDetectFaceLandmarksRequest()
+            // אנחנו מכניסים את התוצאה של שלב 1 כדי לחסוך חישוב כפול ולשמור על הזוויות
+            landmarksRequest.inputFaceObservations = [faceRectObs]
+            
+            try handler.perform([landmarksRequest])
+            
+            guard let faceLandmarksObs = (landmarksRequest.results as? [VNFaceObservation])?.first,
+                  let landmarks = faceLandmarksObs.landmarks,
+                  let leftEye = landmarks.leftEye,
+                  let rightEye = landmarks.rightEye else {
+                handleFaceLostIfNeeded(now: now)
                 return
             }
             
             self.lastFaceSeenTime = now
             
-            guard let leftEye = landmarks.leftEye, let rightEye = landmarks.rightEye else {
-                self.handleFaceLostIfNeeded(now: now)
-                return
-            }
-            
-            // 1. עיבוד תמונה קלאסי (אופציונלי להדגמה)
+            // עיבוד תמונה קלאסי (אופציונלי להדגמה)
             self.imageProcessor.processEyeRegion(
                 pixelBuffer: pixelBuffer,
-                faceBoundingBox: face.boundingBox,
+                faceBoundingBox: faceRectObs.boundingBox,
                 eyeLandmarks: leftEye
             )
             
-            // 2. חישוב EAR גולמי
+            // חישוב EAR גולמי והחלקה
             let leftRaw = self.calculateEARClosedness(from: leftEye)
             let rightRaw = self.calculateEARClosedness(from: rightEye)
             
-            // 3. החלקת נתונים (Temporal Filtering)
             let leftSmoothed = self.smoothValue(leftRaw, history: &self.leftEyeHistory)
             let rightSmoothed = self.smoothValue(rightRaw, history: &self.rightEyeHistory)
             
-            // הדפסה לדיבאג כדי לראות את ההבדל בין הערך הגולמי למוחלק
-            // print("EAR -> Raw: \(leftRaw), Smoothed: \(leftSmoothed)")
+            // שולפים את הזוויות מ-faceRectObs (שיש לו את Revision 3) ולא מה-Landmarks!
+            let pitch = faceRectObs.pitch?.floatValue ?? 0
+            let yaw = faceRectObs.yaw?.floatValue ?? 0
+            let roll = faceRectObs.roll?.floatValue ?? 0
             
-            self.onMetrics?(FaceMetrics(timestamp: now, blinkLeft: leftSmoothed, blinkRight: rightSmoothed))
-        }
-        
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])
-        do {
-            try handler.perform([request])
+            self.onMetrics?(FaceMetrics(
+                timestamp: now,
+                blinkLeft: leftSmoothed,
+                blinkRight: rightSmoothed,
+                faceRect: faceRectObs.boundingBox,
+                pitch: pitch,
+                yaw: yaw,
+                roll: roll
+            ))
+            
         } catch {
             handleFaceLostIfNeeded(now: now)
         }
@@ -161,12 +183,10 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
         let pts = region.normalizedPoints
         guard pts.count >= 6 else { return 0 }
 
-        // חישוב רוחב העין (אופקי)
         let leftCorner = pts.min(by: { $0.x < $1.x })!
         let rightCorner = pts.max(by: { $0.x < $1.x })!
         let hDist = Float(hypot(leftCorner.x - rightCorner.x, leftCorner.y - rightCorner.y))
 
-        // חישוב גובה העין (אנכי) ע"י חלוקת העין לחצאים למניעת רעש
         let midX = (leftCorner.x + rightCorner.x) / 2
         let leftHalf = pts.filter { $0.x < midX }
         let rightHalf = pts.filter { $0.x >= midX }
@@ -182,9 +202,8 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
 
         let ear = (v1 + v2) / (2.0 * max(0.0001, hDist))
         
-        // ספי EAR מותאמים אישית למניעת רגישות יתר
         let openEAR: Float = 0.22
-        let closedEAR: Float = 0.13 // הורדנו מעט כדי שיהיה צורך בסגירה ברורה יותר
+        let closedEAR: Float = 0.13
 
         if ear >= openEAR { return 0.0 }
         if ear <= closedEAR { return 1.0 }

@@ -39,6 +39,8 @@ final class DrowsinessView: UIView {
         addSubview(progressView)
 
         NSLayoutConstraint.activate([
+            // 1. נותנים ל-statusLabel גובה קבוע כדי למנוע קפיצות UI
+            statusLabel.heightAnchor.constraint(equalToConstant: 50),
             statusLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
             statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
             statusLabel.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12),
@@ -65,10 +67,11 @@ final class DrowsinessView: UIView {
         }
 
         progressView.progress = Float(state.continuousClosureProgress)
-
+        
+        // עדכון מצב האזעקה
         switch state.alert {
         case .none:
-            statusLabel.text = "Tracking ✅"
+            statusLabel.text = "" // עכשיו כשיש גובה קבוע, הטקסט הריק לא יזיז את ה-Layout
             statusLabel.textColor = .label
         case .warning:
             statusLabel.text = "⚠️ Warning: fatigue rising"
