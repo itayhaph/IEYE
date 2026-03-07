@@ -2,7 +2,7 @@ import Foundation
 
 public final class DrowsinessEvaluator {
 
-    // MARK: - Tuning
+    // Tuning
     private let calibrationDuration: TimeInterval = 6.0
     private let smoothingAlpha: Float = 0.25
     private let perclosWindow: TimeInterval = 60.0
@@ -12,11 +12,11 @@ public final class DrowsinessEvaluator {
 
     private let closedContinuousForAlarm: TimeInterval = 1.2
 
-    // MARK: - Baseline thresholds (computed after calibration)
+    // Baseline thresholds (computed after calibration)
     private var closeThreshold: Float = 0.80
     private var openThreshold: Float  = 0.55
 
-    // MARK: - State
+    // State
     private enum EyeState { case open, closed }
     private var eyeState: EyeState = .open
 
@@ -110,7 +110,6 @@ public final class DrowsinessEvaluator {
             }
         }
 
-        // --- התיקון המרכזי: הוספת דגימה עם מנגנון התאוששות מהירה ---
         appendWindowSample(time: now, isClosed: eyeState == .closed, fastRecovery: bothOpen)
         let perclos = computePerclos()
 
@@ -144,7 +143,7 @@ public final class DrowsinessEvaluator {
         )
     }
 
-    // MARK: - Helpers
+    // Helpers
     private func finalizeCalibration() {
         defer { isCalibrated = true }
         guard calibrationSamples.count >= 30 else { return }
@@ -160,11 +159,8 @@ public final class DrowsinessEvaluator {
     private func appendWindowSample(time: TimeInterval, isClosed: Bool, fastRecovery: Bool) {
         windowSamples.append(.init(time: time, isClosed: isClosed))
 
-        // מנגנון "ניקוי מהיר": אם המשתמש פקח עיניים, נמחק דגימות "סגורות" ישנות מהר יותר
-        // כדי שהממוצע ירד מיד ולא יחכה 60 שניות.
         if fastRecovery {
             var removedCount = 0
-            // בכל פעם שיש פתיחה, נמחק עד 5 דגימות "סגורות" מההיסטוריה
             windowSamples.removeAll { sample in
                 if removedCount < 5 && sample.isClosed {
                     removedCount += 1
@@ -175,7 +171,6 @@ public final class DrowsinessEvaluator {
         }
 
         let cutoff = time - perclosWindow
-        // ניקוי סטנדרטי לפי חלון הזמן
         while !windowSamples.isEmpty && windowSamples[0].time < cutoff {
             windowSamples.removeFirst()
         }

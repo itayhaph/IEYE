@@ -40,9 +40,6 @@ public final class ImageProcessingService {
         thresholdFilter.setValue(0.4, forKey: kCIInputBrightnessKey)  // Threshold cutoff level
         
         guard let binaryImage = thresholdFilter.outputImage else { return }
-        
-        // NOTE FOR THE REPORT: At this point, 'binaryImage' is a black-and-white image.
-        // In a purely classical approach, we would count the black pixels to determine if the eye is open or closed.
     }
     
     /// Helper: Converts Vision's normalized coordinate system into absolute pixel coordinates

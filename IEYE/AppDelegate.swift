@@ -1,10 +1,3 @@
-//
-//  AppDelegate.swift
-//  IEYE
-//
-//  Created by Itay Haphiloni on 19/02/2026.
-//
-
 import UIKit
 import AVFoundation
 

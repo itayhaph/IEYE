@@ -1,10 +1,3 @@
-//
-//  DIContainer.swift
-//  IEYE
-//
-//  Created by Itay Haphiloni on 19/02/2026.
-//
-
 import ARKit
 
 enum DetectionBackend {
@@ -15,14 +8,9 @@ enum DetectionBackend {
 final class DIContainer {
 
     static func makeBackend() -> DetectionBackend {
-        // Prefer ARKit when device supports face tracking; otherwise fall back to Vision
-//        if ARFaceTrackingConfiguration.isSupported {
-//            return .arkit
-//        } else {
         return .vision
     }
 
-    // בתוך DIContainer
     static func makeARKitDetector(sceneView: ARSCNView) -> MetricsDetecting {
         return ARKitFaceMetricsDetector(sceneView: sceneView)
     }

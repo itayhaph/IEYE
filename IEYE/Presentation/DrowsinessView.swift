@@ -1,10 +1,3 @@
-//
-//  DrowsinessView.swift
-//  IEYE
-//
-//  Created by Itay Haphiloni on 19/02/2026.
-//
-
 import UIKit
 
 final class DrowsinessView: UIView {
@@ -68,10 +61,9 @@ final class DrowsinessView: UIView {
 
         progressView.progress = Float(state.continuousClosureProgress)
         
-        // עדכון מצב האזעקה
         switch state.alert {
         case .none:
-            statusLabel.text = "" // עכשיו כשיש גובה קבוע, הטקסט הריק לא יזיז את ה-Layout
+            statusLabel.text = ""
             statusLabel.textColor = .label
         case .warning:
             statusLabel.text = "⚠️ Warning: fatigue rising"

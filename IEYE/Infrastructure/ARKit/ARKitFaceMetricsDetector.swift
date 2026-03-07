@@ -43,11 +43,8 @@ public final class ARKitFaceMetricsDetector: NSObject, MetricsDetecting, ARSCNVi
         guard isRunning else { return }
         let now = CACurrentMediaTime()
         
-        // קבלת המטריצה
         let transform = faceAnchor.transform
         
-        // ב-simd_float4x4, הגישה היא למאפיינים .columns.0, .columns.1 וכו'
-        // הנה החישוב הנכון לזוויות Euler (Pitch, Yaw, Roll):
         let pitch = asin(-transform.columns.1.z)
         let yaw = atan2(transform.columns.0.z, transform.columns.2.z)
         let roll = atan2(transform.columns.1.x, transform.columns.1.y)

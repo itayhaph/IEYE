@@ -20,7 +20,6 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
     private var lastRequestTime: TimeInterval = 0
     private let maxFPS: Double = 12
 
-    // --- מנגנון החלקת נתונים (Smoothing) למניעת אזעקות שווא ---
     private var leftEyeHistory: [Float] = []
     private var rightEyeHistory: [Float] = []
     private let maxHistorySamples = 4
@@ -112,25 +111,20 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
         
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])
         
-        // --- שלב 1: זיהוי פנים עם Revision 3 לקבלת זוויות רציפות ---
         let rectRequest = VNDetectFaceRectanglesRequest()
         if #available(iOS 15.0, *) {
-            // זה מה שמתקן את הקפיצות ב-Yaw ומחשב Pitch ו-Roll!
             rectRequest.revision = VNDetectFaceRectanglesRequestRevision3
         }
         
         do {
             try handler.perform([rectRequest])
             
-            // שולפים את הפנים (עכשיו יש עליהן מידע זוויות חלק)
             guard let faces = rectRequest.results as? [VNFaceObservation], let faceRectObs = faces.first else {
                 handleFaceLostIfNeeded(now: now)
                 return
             }
             
-            // --- שלב 2: זיהוי ציוני פנים (Landmarks) על הפנים המדויקות שמצאנו ---
             let landmarksRequest = VNDetectFaceLandmarksRequest()
-            // אנחנו מכניסים את התוצאה של שלב 1 כדי לחסוך חישוב כפול ולשמור על הזוויות
             landmarksRequest.inputFaceObservations = [faceRectObs]
             
             try handler.perform([landmarksRequest])
@@ -145,21 +139,18 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
             
             self.lastFaceSeenTime = now
             
-            // עיבוד תמונה קלאסי (אופציונלי להדגמה)
             self.imageProcessor.processEyeRegion(
                 pixelBuffer: pixelBuffer,
                 faceBoundingBox: faceRectObs.boundingBox,
                 eyeLandmarks: leftEye
             )
             
-            // חישוב EAR גולמי והחלקה
             let leftRaw = self.calculateEARClosedness(from: leftEye)
             let rightRaw = self.calculateEARClosedness(from: rightEye)
             
             let leftSmoothed = self.smoothValue(leftRaw, history: &self.leftEyeHistory)
             let rightSmoothed = self.smoothValue(rightRaw, history: &self.rightEyeHistory)
             
-            // שולפים את הזוויות מ-faceRectObs (שיש לו את Revision 3) ולא מה-Landmarks!
             let pitch = faceRectObs.pitch?.floatValue ?? 0
             let yaw = faceRectObs.yaw?.floatValue ?? 0
             let roll = faceRectObs.roll?.floatValue ?? 0
@@ -212,7 +203,6 @@ public final class VisionFaceMetricsDetector: NSObject, MetricsDetecting {
     }
     
     public func handleUpdate(faceAnchor: ARFaceAnchor) {
-        // לא רלוונטי ל-Vision Backend
     }
 }
 

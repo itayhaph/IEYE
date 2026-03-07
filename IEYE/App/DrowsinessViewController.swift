@@ -20,7 +20,7 @@ final class DrowsinessViewController: UIViewController {
 
         // 1. UI Setup
         setupHeadAngleLabel()
-        setupUIStack() // מחליף את ה-setup הישנים של הכפתור והמדדים
+        setupUIStack()
         setupDetectionLayer()
 
         // 2. DI & Backend logic
@@ -47,7 +47,6 @@ final class DrowsinessViewController: UIViewController {
     // --- UI Setup Methods ---
 
     private func setupUIStack() {
-        // 1. התאמת הכפתור (גודל קטן יותר)
         nightModeButton.setTitle("Switch to Night Mode", for: .normal)
         nightModeButton.backgroundColor = .systemBlue
         nightModeButton.setTitleColor(.white, for: .normal)
@@ -55,26 +54,20 @@ final class DrowsinessViewController: UIViewController {
         nightModeButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .medium)
         nightModeButton.addTarget(self, action: #selector(nightModeTapped), for: .touchUpInside)
         
-        // 2. יצירת ה-Stack
         let stack = UIStackView(arrangedSubviews: [nightModeButton, drowsinessView])
         stack.axis = .vertical
-        stack.spacing = 8 // צפיפות גבוהה יותר
+        stack.spacing = 8
         stack.alignment = .center
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
 
-        // 3. מיקום ה-Stack למטה (כמעט נוגע בקצה)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            // שימוש ב-constant קטן מאוד כדי להצמיד למטה
             stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -5),
             
-            // הכפתור קטן יותר
             nightModeButton.heightAnchor.constraint(equalToConstant: 40),
             nightModeButton.widthAnchor.constraint(equalToConstant: 180),
-            
-            // ה-drowsinessView תופס את מה שנשאר
             drowsinessView.heightAnchor.constraint(equalToConstant: 80),
             drowsinessView.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.95)
         ])
